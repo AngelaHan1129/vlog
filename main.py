@@ -47,6 +47,9 @@ def generate_vlog(
     video = video.with_audio(final_audio)
 
     # 7. 輸出
+    # 確保輸出資料夾存在，如果沒有就自動建立
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    
     output_path = OUTPUT_DIR / output_file
     video.write_videofile(str(output_path), fps=FPS, codec="libx264", audio_codec="aac")
     return str(output_path)
