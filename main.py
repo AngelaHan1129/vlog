@@ -51,7 +51,7 @@ def generate_vlog(
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
     output_path = OUTPUT_DIR / output_file
-    video.write_videofile(str(output_path), fps=FPS, codec="libx264", audio_codec="aac")
+    video.write_videofile(str(output_path), fps=FPS, codec="libx264", audio_codec="libmp3lame")
     return str(output_path)
 
 if __name__ == "__main__":
