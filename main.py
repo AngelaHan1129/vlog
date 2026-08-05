@@ -30,7 +30,7 @@ def generate_vlog(
     tts_audio = AudioFileClip(str(tts_audio_file))
 
     # 3. 載入背景音樂（音量降低）- v2 語法：volumex 變成 multiply_volume
-    bgm_audio = AudioFileClip(str(bgm_file)).multiply_volume(0.3)
+    bgm_audio = AudioFileClip(str(bgm_file)).volx(0.3)
 
     # 4. 調整背景音樂長度與旁白一致 - v2 語法：subclip 變成 subclipped
     if bgm_audio.duration > tts_audio.duration:
