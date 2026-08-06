@@ -1,1 +1,31 @@
-.venv
+# =========================
+# 1. Python, Linux 與虛擬環境
+# =========================
+# 標準虛擬環境資料夾 (涵蓋 Windows/Linux/Mac)
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Linux 若不小心將 venv 建在根目錄時的系統資料夾
+bin/
+lib/
+lib64/
+include/
+share/
+
+# Python 編譯與快取檔
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# uv 工具與套件管理快取 (Linux 開發常用)
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.tox/
+pip-log.txt
+pip-delete-this-directory.txt
