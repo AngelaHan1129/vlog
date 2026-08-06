@@ -12,6 +12,7 @@ venv.bak/
 # Linux 若不小心將 venv 建在根目錄時的系統資料夾
 bin/
 lib/
+lib64
 lib64/
 include/
 share/
