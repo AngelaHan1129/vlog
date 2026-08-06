@@ -16,6 +16,7 @@ lib64
 lib64/
 include/
 share/
+pyvenv.cfg
 
 # Python 編譯與快取檔
 __pycache__/
