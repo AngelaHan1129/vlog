@@ -9,4 +9,4 @@ app.include_router(vlog_router, prefix="/api")
 
 if __name__ == "__main__":
     # 使用 HTTP 啟動伺服器 (避開憑證問題)
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=2026, reload=True)
