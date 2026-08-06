@@ -1,4 +1,15 @@
+# === 伺服器與基礎 API 套件 ===
 fastapi>=0.111.0
 uvicorn>=0.30.0
 pydantic>=2.7.0
+
+# === 影片處理套件 ===
 moviepy>=2.0.0
+pillow>=10.0.0
+
+# === LTX-Video AI 生成模型所需套件 ===
+torch>=2.0.0
+diffusers>=0.30.0
+transformers>=4.38.0
+accelerate>=0.30.0
+peft>=0.11.0
