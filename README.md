@@ -48,8 +48,8 @@ python -m venv .venv
 
 ```bash
 cd vlog_generator
-python3 -m venv venv
-source venv/bin/activate
+python3 -m .venv venv
+source .venv/bin/activate
 ```
 
 啟動成功後，終端機前面會出現 `(.venv)`。 [docs.python](https://docs.python.org/zh-tw/3/library/venv.html)
