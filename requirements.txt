@@ -1,20 +1,27 @@
-# === 伺服器與基礎 API 套件 ===
+# === Backend & API Routing ===
 fastapi>=0.111.0
 uvicorn>=0.30.0
 pydantic>=2.7.0
 
-# === 影片處理套件 ===
+# === Video Processing & Synthesis ===
 moviepy>=2.0.0
 pillow>=10.0.0
 
-# === LTX-Video AI 生成模型所需套件 ===
+# === LTX-Video AI Generation ===
 torch>=2.0.0
 diffusers>=0.30.0
-transformers>=4.38.0
 accelerate>=0.30.0
 peft>=0.11.0
 
-# === LTX-Video 語言處理套件 ===
+# === Text Processing & Model Hub ===
+# WARNING: transformers must be pinned to 4.44.2 to prevent BeamSearchScorer conflict with TTS
+transformers==4.44.2
 sentencepiece>=0.2.0
 tiktoken>=0.7.0
 protobuf>=4.25.0
+huggingface-hub>=0.23.0
+
+# === TTS (XTTS) & Audio Processing ===
+TTS
+torchcodec
+soundfile
