@@ -142,7 +142,7 @@ mkdir vlog_generator
 cd vlog_generator
 
 # 2. 建立虛擬環境
-python -m venv .venv
+uv venv --python 3.11
 
 # 3. 啟動虛擬環境
 # Windows
