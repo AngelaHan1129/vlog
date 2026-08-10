@@ -156,9 +156,12 @@ pip install moviepy
 # 5. 產生 requirements.txt
 pip freeze > requirements.txt
 
+# 一行指令就能安裝完全部
+uv pip install -r requirements.txt
+
 # 6. 把你的 main.py、config.py 放進來
 # 7. 執行程式
-python main.py
+uv run python main.py
 
 # 8. 完成後停用
 deactivate
