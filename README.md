@@ -146,7 +146,7 @@ uv venv --python 3.11
 
 # 3. 啟動虛擬環境
 # Windows
-.venv\Scripts\Activate.ps1
+.\.venv\Scripts\activate
 # macOS / Linux
 source .venv/bin/activate
 
