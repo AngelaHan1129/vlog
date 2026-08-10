@@ -2,6 +2,7 @@
 fastapi>=0.111.0
 uvicorn>=0.30.0
 pydantic>=2.7.0
+python-multipart    
 
 # === Video Processing & Synthesis ===
 moviepy>=2.0.0
@@ -14,14 +15,16 @@ accelerate>=0.30.0
 peft>=0.11.0
 
 # === Text Processing & Model Hub ===
-# WARNING: transformers must be pinned to 4.44.2 to prevent BeamSearchScorer conflict with TTS
-transformers==4.44.2
+transformers        
 sentencepiece>=0.2.0
 tiktoken>=0.7.0
 protobuf>=4.25.0
 huggingface-hub>=0.23.0
+datasets            
 
-# === TTS (XTTS) & Audio Processing ===
+# === TTS (XTTS) & ASR (Whisper) & Audio Processing ===
 TTS
 torchcodec
 soundfile
+librosa             
+numpy<2             
