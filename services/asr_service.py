@@ -22,15 +22,15 @@ def _get_asr_pipeline():
             model="openai/whisper-large-v3-turbo",
             torch_dtype=torch_dtype,
             device=device,
+            chunk_length_s=30,  # 🆕 告訴模型：自動把長語音切成每 30 秒一段來處理！
         )
         print("✅ Whisper ASR 模型載入完成！")
         
     return _asr_pipeline
 
-# 💡 將預設 language 改為 None，讓模型自己聽音辨位！
 def transcribe_audio(audio_path: str, language: str = None) -> str:
     """
-    將使用者的錄音檔轉換為純文字 (支援多國語言自動偵測)
+    將使用者的錄音檔轉換為純文字 (支援多國語言自動偵測與超過 30 秒的長語音)
     """
     if not os.path.exists(audio_path):
         raise FileNotFoundError(f"找不到錄音檔: {audio_path}")
@@ -40,9 +40,13 @@ def transcribe_audio(audio_path: str, language: str = None) -> str:
     print(f"👂 系統正在跨國語言聆聽模式... (檔案: {audio_path})")
 
     # 動態設定參數
-    gen_kwargs = {"task": "transcribe"}
+    gen_kwargs = {
+        "task": "transcribe",
+        "return_timestamps": True  # 🆕 告訴模型：長語音處理時必須紀錄時間軸！
+    }
+    
     if language:
-        gen_kwargs["language"] = language # 除非手動指定，否則不綁死語言
+        gen_kwargs["language"] = language
 
     # 執行語音辨識
     result = asr_pipe(

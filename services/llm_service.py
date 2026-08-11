@@ -20,22 +20,21 @@ def _get_llm():
         
     return _llm_pipeline
 
-def generate_vlog_content(asr_text: str) -> dict:
-    """
-    接收 ASR 辨識出的草稿，轉換為 Vlog 旁白與影片生成 Prompt
-    """
+# 1. 幫函數多加一個 user_emotion 參數
+def generate_vlog_content(asr_text: str, user_emotion: str = "平靜、放鬆") -> dict:
     llm = _get_llm()
-    
-    print("🧠 大腦正在思考如何將語音轉換為優美的 Vlog 腳本...")
+    print(f"🧠 大腦正在以【{user_emotion}】的氛圍撰寫 Vlog 腳本...")
 
-# Llama-3 的系統提示詞，賦予它強烈的「南投觀光 Vlog 企劃」人設
-    system_prompt = """你是一個專業的台灣南投觀光 Vlog 企劃。
-請根據使用者提供的語音草稿（可能是語音辨識錯誤的亂碼或外語），完成兩件事：
-1. 修正錯字與語病，將其改寫為一句流暢、充滿感情的「繁體中文（台灣用語）」旁白。若草稿不知所云（例如出現 Firefox 等無關詞彙），請主動將其腦補、轉化為跟「南投、茶園、放鬆、大自然」有關的優美句子。絕對不能出現簡體字。
+    # 2. 在 System Prompt 中注入情緒變數
+    system_prompt = f"""你是一個專業的台灣南投觀光 Vlog 企劃。
+請根據使用者提供的語音草稿，完成兩件事：
+1. 將其改寫為一句流暢的「繁體中文（台灣用語）」旁白。
+⚠️ 重要指令：使用者說話時的情緒是【{user_emotion}】。請務必讓旁白的用字遣詞、語氣與這個情緒完美契合！(例如：若為興奮，多用驚嘆與輕快詞彙；若為感性，多用優美懷舊的詞彙)。絕對不能出現簡體字。
 2. 根據旁白，寫一句「英文」的畫面描述 (Prompt)，用來生成沒有文字的風景動態影片。
 
 請嚴格輸出 JSON 格式，格式如下：
-{"tw_script": "你的繁體中文旁白", "en_video_prompt": "Your english video prompt"}"""
+{{"tw_script": "你的繁體中文旁白", "en_video_prompt": "Your english video prompt"}}"""
+
 
     # 將對話格式化為 Llama-3 認得的 Chat Template
     messages = [

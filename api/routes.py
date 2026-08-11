@@ -5,11 +5,12 @@ from fastapi import APIRouter, BackgroundTasks, UploadFile, File, Form
 from pydantic import BaseModel
 from core.config import IMAGES_DIR, AUDIO_DIR, BGM_DIR
 
-# 引入我們的四大模組
+# 引入我們的五大模組 (加入了 SER 情感分析)
 from services.asr_service import transcribe_audio
 from services.llm_service import generate_vlog_content
 from services.tts_service import generate_tts
 from services.moviepy_service import process_vlog_task
+from services.ser_service import analyze_emotion
 
 router = APIRouter()
 
@@ -50,14 +51,14 @@ async def create_vlog_api(request: VlogRequest, bg_tasks: BackgroundTasks):
 
 
 # ----------------------------------------------------
-# 🆕 模式二：全自動語音一條龍 (ASR -> LLM -> TTS -> Video)
+# 🆕 模式二：全自動語音一條龍 (ASR -> SER -> LLM -> TTS -> Video)
 # ----------------------------------------------------
 @router.post("/create_vlog_from_audio")
 async def create_vlog_from_audio_api(
     bg_tasks: BackgroundTasks,
     user_audio: UploadFile = File(...),              # 使用者上傳的手機錄音檔
-    image_files: str = Form("[]"),                    # 選擇性傳入的基礎圖片列表 (JSON 字串)
-    bgm_file: str = Form("default_bgm.mp3")           # 背景音樂檔名
+    image_files: str = Form("[]"),                   # 選擇性傳入的基礎圖片列表 (JSON 字串)
+    bgm_file: str = Form("default_bgm.mp3")          # 背景音樂檔名
 ):
     task_id = str(uuid.uuid4())[:8]
     output_filename = f"vlog_{task_id}.mp4"
@@ -72,9 +73,13 @@ async def create_vlog_from_audio_api(
     print(f"[{task_id}] 👂 啟動 ASR 聽取語音...")
     raw_text = transcribe_audio(temp_user_audio_path)
 
-    # 3. 🧠 LLM 大腦改寫 (生成繁體旁白 + 英文 Prompt)
-    print(f"[{task_id}] 🧠 啟動 LLM 撰寫 Vlog 腳本...")
-    script_data = generate_vlog_content(raw_text)
+    # 2.5 💓 SER 情感分析 (聽出情緒)
+    print(f"[{task_id}] 💓 啟動 SER 情感分析...")
+    detected_emotion = analyze_emotion(temp_user_audio_path)
+
+    # 3. 🧠 LLM 大腦改寫 (生成繁體旁白 + 英文 Prompt，並融入情緒)
+    print(f"[{task_id}] 🧠 啟動 LLM 撰寫 Vlog 腳本 (情緒設定：{detected_emotion})...")
+    script_data = generate_vlog_content(raw_text, user_emotion=detected_emotion)
     tw_script = script_data.get("tw_script", "歡迎來到南投的美麗茶園。")
     en_prompt = script_data.get("en_video_prompt", "beautiful tea garden in Nantou, Taiwan")
 
@@ -103,15 +108,16 @@ async def create_vlog_from_audio_api(
         output_file=output_filename
     )
 
-    # 6. 迅速回應前端，包含大腦思考出來的優美台詞
+    # 6. 迅速回應前端，包含大腦思考出來的優美台詞與偵測到的情緒
     return {
         "status": "processing",
         "task_id": task_id,
         "ai_result": {
             "transcribed_raw": raw_text,
+            "detected_emotion": detected_emotion,  # 回傳情緒給前端展示
             "tw_script": tw_script,
             "en_prompt": en_prompt
         },
-        "message": "AI 已完成腳本與配音，Vlog 影片正在背景全力繪製中！",
+        "message": f"AI 已感受到你的【{detected_emotion}】，Vlog 影片正在背景全力繪製中！",
         "expected_output": output_filename
     }
