@@ -83,12 +83,11 @@ async def create_vlog_from_audio_api(
     tw_script = script_data.get("tw_script", "歡迎來到南投的美麗茶園。")
     en_prompt = script_data.get("en_video_prompt", "beautiful tea garden in Nantou, Taiwan")
 
-    # 4. 🗣️ TTS 台灣語音生成 (使用道地的台灣參考音)
+    # 4. 🗣️ TTS 台灣語音生成 (使用極速、高音質的 Edge-TTS)
     print(f"[{task_id}] 🗣️ 啟動 TTS 生成台灣口音配音...")
-    ref_audio_path = "assets/audio/tw_reference.wav"
-    # 🔴 暫時改成純中文測試，避開 LLM 產生的數字或英文
-    test_text = "這是一段測試語音，我想確認系統的聲音聽起來，是不是還是怪怪的。"
-    generated_tts_path = generate_tts(text=test_text, reference_audio_path=ref_audio_path)
+    
+    # 記得加上 await，並傳入從 LLM 拿到的 tw_script
+    generated_tts_path = await generate_tts(text=tw_script, voice="zh-TW-HsiaoChenNeural")
 
     # 5. 🎬 準備背景任務 (將合成工作丟給 MoviePy/LTX-Video)
     full_bgm_path = str(BGM_DIR / bgm_file)
