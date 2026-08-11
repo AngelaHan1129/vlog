@@ -72,7 +72,7 @@ def _get_tts_model():
 
     return _tts_model
 
-def generate_tts(text: str, reference_audio_path: str, language: str = "zh-cn") -> str:
+def generate_tts(text: str, reference_audio_path: str, language: str = "zh") -> str:
     """
     實作台灣版 XTTS v2 的語音生成邏輯
     """
