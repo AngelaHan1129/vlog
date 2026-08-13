@@ -27,19 +27,23 @@ async def visitor_vlog_api(
     task_id = str(uuid.uuid4())[:8]
     temp_path = str(AUDIO_DIR / f"upload_{task_id}.mp3")
     with open(temp_path, "wb") as buffer: shutil.copyfileobj(user_audio.file, buffer)
-    
+
     raw_text = transcribe_audio(temp_path)
     emotion = analyze_emotion(temp_path)
-    
+
     # 批次 RAG 檢索
     spots = json.loads(spot_list)
     rag_context = "\n".join([search_neo4j_rag(spot) for spot in spots])
-    
+
     script_data = generate_vlog_content_with_template(raw_text, emotion, "user_vlog", rag_context)
     tts_path = await generate_tts(script_data["tw_script"])
 
+    # 修正：將檔名轉為完整路徑
+    parsed_images = json.loads(image_files)
+    full_image_paths = [str(IMAGES_DIR / img) for img in parsed_images]
+
     bg_tasks.add_task(
-        process_vlog_task, task_id, json.loads(image_files), script_data["en_video_prompt"], 
+        process_vlog_task, task_id, full_image_paths, script_data["en_video_prompt"],
         tts_path, str(BGM_DIR / bgm_file), f"vlog_{task_id}.mp4", "user_vlog"
     )
     return {"status": "processing", "task_id": task_id, "message": "生活記錄 Vlog 生成中"}
@@ -56,13 +60,17 @@ async def merchant_promo_api(
     bgm_file: str = Form("promo_bgm.mp3")
 ):
     task_id = str(uuid.uuid4())[:8]
-    
+
     # 直接使用商家文案
     script_data = generate_vlog_content_with_template(promo_text, "專業熱情", "merchant_promo", "")
     tts_path = await generate_tts(script_data["tw_script"])
 
+    # 修正：將檔名轉為完整路徑
+    parsed_images = json.loads(image_files)
+    full_image_paths = [str(IMAGES_DIR / img) for img in parsed_images]
+
     bg_tasks.add_task(
-        process_vlog_task, task_id, json.loads(image_files), script_data["en_video_prompt"], 
+        process_vlog_task, task_id, full_image_paths, script_data["en_video_prompt"],
         tts_path, str(BGM_DIR / bgm_file), f"promo_{task_id}.mp4", "merchant_promo", merchant_name
     )
     return {"status": "processing", "task_id": task_id, "message": "商家宣傳影片生成中"}
