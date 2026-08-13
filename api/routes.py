@@ -30,7 +30,7 @@ async def check_status(task_id: str):
 @router.get("/download/{filename}")
 async def download_video(filename: str):
     file_path = (OUTPUT_DIR / filename).resolve()
-    
+
     # 如果精準檔名不存在，透過 task_id 進行模糊搜尋以防檔名對不上
     if not file_path.exists():
         task_id = filename.replace("vlog_", "").replace("promo_", "").replace(".mp4", "")
@@ -40,8 +40,9 @@ async def download_video(filename: str):
 
     if file_path.exists():
         return FileResponse(file_path, media_type='video/mp4', filename=file_path.name)
-    
+
     return JSONResponse(status_code=404, content={"message": "找不到檔案，請確認任務是否已完成"})
+
 # ----------------------------------------------------
 # 模式一：遊客端 - 生活記錄 Vlog
 # ----------------------------------------------------
@@ -90,10 +91,26 @@ async def visitor_vlog_api(
         if not isinstance(spots, list): spots = [str(spots)]
     except:
         spots = [s.strip() for s in spot_list.split(",") if s.strip()]
+    
     rag_context = "\n".join([search_neo4j_rag(spot) for spot in spots])
     script_data = generate_vlog_content_with_template(raw_text, emotion, "user_vlog", rag_context)
     tts_path = await generate_tts(script_data["tw_script"])
 
-    bg_tasks.add_task(process_vlog_task, task_id, full_image_paths, script_data["en_video_prompt"], tts_path, bgm_path, filename, "user_vlog")
-    
-    return {"status": "processing", "task_id": task_id, "check_url": f"https://vlog.angelalala.com/api/check_status/{task_id}"}
+    bg_tasks.add_task(
+        process_vlog_task, 
+        task_id, 
+        full_image_paths, 
+        script_data["en_video_prompt"], 
+        tts_path, 
+        bgm_path, 
+        filename, 
+        "user_vlog", 
+        merchant_name="", 
+        subtitle_text=script_data["tw_script"]
+    )
+
+    return {
+        "status": "processing", 
+        "task_id": task_id, 
+        "check_url": f"https://vlog.angelalala.com/api/check_status/{task_id}"
+    }
