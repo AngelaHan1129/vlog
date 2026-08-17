@@ -166,3 +166,10 @@ uv run python main.py
 # 8. 完成後停用
 deactivate
 ```
+
+curl -X POST "http://localhost:2026/api/visitor/create_vlog" \
+  -H "accept: application/json" \
+  -F "user_audio=assets\audio\3.AI不是口號.m4a" \
+  -F "spot_list=[\"南投環湖茶園\", \"竹林秘境\"]" \
+  -F "image_files=[\"assets\images\img4.jpg\", \"assets\images\img6.jpg"]" \
+  -F "bgm_file=assets\bgm\ikoliks_aj-background-music-320427.mp3"

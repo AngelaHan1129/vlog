@@ -31,3 +31,5 @@ __pycache__/
 .tox/
 pip-log.txt
 pip-delete-this-directory.txt
+
+assets/dbs/
