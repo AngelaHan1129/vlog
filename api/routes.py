@@ -16,6 +16,22 @@ from services.neo4j_rag_service import search_neo4j_rag
 router = APIRouter()
 
 # ----------------------------------------------------
+# 暫時性管理端點：上傳 Neo4j dump 檔案
+# ----------------------------------------------------
+@router.post("/admin/upload_dump")
+async def upload_dump_file(file: UploadFile = File(...)):
+    # 將上傳的 dump 檔案儲存至專案根目錄 (OUTPUT_DIR 的上一層)
+    target_path = OUTPUT_DIR.parent / file.filename
+    with open(target_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    return {
+        "status": "success", 
+        "filename": file.filename, 
+        "saved_path": str(target_path),
+        "message": "Dump 檔案上傳成功！請透過 docker cp 將其移入 neo4j-local 容器內進行還原。"
+    }
+
+# ----------------------------------------------------
 # 下載與檢查端點
 # ----------------------------------------------------
 @router.get("/check_status/{task_id}")
@@ -91,26 +107,26 @@ async def visitor_vlog_api(
         if not isinstance(spots, list): spots = [str(spots)]
     except:
         spots = [s.strip() for s in spot_list.split(",") if s.strip()]
-    
+
     rag_context = "\n".join([search_neo4j_rag(spot) for spot in spots])
     script_data = generate_vlog_content_with_template(raw_text, emotion, "user_vlog", rag_context)
     tts_path = await generate_tts(script_data["tw_script"])
 
     bg_tasks.add_task(
-        process_vlog_task, 
-        task_id, 
-        full_image_paths, 
-        script_data["en_video_prompt"], 
-        tts_path, 
-        bgm_path, 
-        filename, 
-        "user_vlog", 
-        merchant_name="", 
+        process_vlog_task,
+        task_id,
+        full_image_paths,
+        script_data["en_video_prompt"],
+        tts_path,
+        bgm_path,
+        filename,
+        "user_vlog",
+        merchant_name="",
         subtitle_text=script_data["tw_script"]
     )
 
     return {
-        "status": "processing", 
-        "task_id": task_id, 
+        "status": "processing",
+        "task_id": task_id,
         "check_url": f"https://vlog.angelalala.com/api/check_status/{task_id}"
     }
