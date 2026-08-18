@@ -3,6 +3,7 @@ import uuid
 import shutil
 import json
 import zipfile
+import edge_tts
 from fastapi import APIRouter, BackgroundTasks, UploadFile, File, Form
 from fastapi.responses import FileResponse, JSONResponse
 from core.config import IMAGES_DIR, AUDIO_DIR, BGM_DIR, OUTPUT_DIR
@@ -25,11 +26,47 @@ async def upload_dump_file(file: UploadFile = File(...)):
     with open(target_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     return {
-        "status": "success", 
-        "filename": file.filename, 
+        "status": "success",
+        "filename": file.filename,
         "saved_path": str(target_path),
         "message": "Dump 檔案上傳成功！請透過 docker cp 將其移入 neo4j-local 容器內進行還原。"
     }
+
+# ----------------------------------------------------
+# 新功能：NPC 專屬配音 API（讓 LLM 輸入文字生成活潑語音）
+# ----------------------------------------------------
+@router.post("/npc/speak")
+async def npc_speak_api(
+    text: str = Form(..., description="LLM 產生的 NPC 對話文字"),
+    voice: str = Form("zh-TW-HsiaoChenNeural", description="語音角色：zh-TW-HsiaoChenNeural (活潑) 或 zh-TW-HsiaoYuNeural (甜美)")
+):
+    """
+    接收文字，透過 Edge-TTS 產生可愛活潑的 NPC 配音，並回傳 mp3 檔案路徑與下載網址
+    """
+    task_id = str(uuid.uuid4())[:8]
+    output_filename = f"npc_{task_id}.mp3"
+    output_path = OUTPUT_DIR / output_filename
+    
+    try:
+        os.makedirs(str(OUTPUT_DIR), exist_ok=True)
+        
+        # 稍微提高語速與高音，讓聲音聽起來更活潑可愛
+        communicate = edge_tts.Communicate(text, voice, rate="+10%", pitch="+5Hz")
+        await communicate.save(str(output_path))
+        
+        if output_path.exists() and output_path.stat().st_size > 0:
+            return {
+                "status": "success",
+                "task_id": task_id,
+                "text": text,
+                "voice_used": voice,
+                "download_url": f"https://vlog.angelalala.com/api/download/{output_filename}"
+            }
+        else:
+            return JSONResponse(status_code=500, content={"message": "語音生成失敗，檔案大小為 0"})
+            
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"message": f"TTS 發生錯誤: {str(e)}"})
 
 # ----------------------------------------------------
 # 下載與檢查端點
@@ -37,11 +74,11 @@ async def upload_dump_file(file: UploadFile = File(...)):
 @router.get("/check_status/{task_id}")
 async def check_status(task_id: str):
     # 檢查 Vlog 或 Promo 檔案是否存在
-    possible_files = [f"vlog_{task_id}.mp4", f"promo_{task_id}.mp4"]
+    possible_files = [f"vlog_{task_id}.mp4", f"promo_{task_id}.mp4", f"npc_{task_id}.mp3"]
     for filename in possible_files:
         if (OUTPUT_DIR / filename).exists():
             return {"status": "ready", "download_url": f"https://vlog.angelalala.com/api/download/{filename}"}
-    return {"status": "processing", "message": "影片生成中或尚未完成"}
+    return {"status": "processing", "message": "檔案生成中或尚未完成"}
 
 @router.get("/download/{filename}")
 async def download_video(filename: str):
@@ -49,13 +86,14 @@ async def download_video(filename: str):
 
     # 如果精準檔名不存在，透過 task_id 進行模糊搜尋以防檔名對不上
     if not file_path.exists():
-        task_id = filename.replace("vlog_", "").replace("promo_", "").replace(".mp4", "")
-        for existing_file in OUTPUT_DIR.glob(f"*{task_id}*.mp4"):
+        task_id = filename.replace("vlog_", "").replace("promo_", "").replace("npc_", "").replace(".mp4", "").replace(".mp3", "")
+        for existing_file in OUTPUT_DIR.glob(f"*{task_id}*.*"):
             file_path = existing_file
             break
 
     if file_path.exists():
-        return FileResponse(file_path, media_type='video/mp4', filename=file_path.name)
+        media_type = 'audio/mp3' if file_path.suffix == '.mp3' else 'video/mp4'
+        return FileResponse(file_path, media_type=media_type, filename=file_path.name)
 
     return JSONResponse(status_code=404, content={"message": "找不到檔案，請確認任務是否已完成"})
 
