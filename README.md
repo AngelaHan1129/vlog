@@ -1,168 +1,119 @@
 
-## 專案結構
+---
+
+# 🎬 PlayTaiwan AI Vlog & NPC 智慧生成系統
+
+本專案是一個基於 **FastAPI**、**Whisper (ASR)**、**Wav2Vec2 (SER)**、**Llama 3 (LLM)**、**Neo4j (RAG 圖形資料庫)** 與 **Edge-TTS** 的智慧影音與 NPC 語音生成系統。專為觀光推廣與在地數位創新設計，能自動分析語音情緒與內容，結合圖形資料庫脈絡，產出帶有精美字幕與自動配音的高質感 Vlog 影片及 NPC 互動語音。
+
+---
+
+## 📂 專案結構
 
 ```text
 vlog_generator/
-├── .venv/                  # 虛擬環境（不要上傳 Git）
-├── assets/                 # 素材資料夾
-│   ├── images/             # 存放靜態觀光照片 (例如: images.jpg)
-│   ├── audio/              # 存放 TTS 旁白音檔 (例如: NHU05104289.wav)
-│   └── bgm/                # 存放背景音樂 (例如: bbc_galapagos.mp3)
-├── output/                 # 影片輸出資料夾 (系統生成時會自動建立與存放)
-├── core/                   # 核心設定層
-│   └── config.py           # 全域路徑與常數設定 (VLOG_WIDTH, FPS, DIR 等)
-├── services/               # 業務邏輯層 (只做運算，不管 API)
-│   ├── moviepy_service.py  # 負責 MoviePy 影片合成的背景處理邏輯
-│   └── ltx_service.py      # (預留) 未來放 LTX-Video 圖生影片的 AI 邏輯
-├── api/                    # 路由層 (只管接單，不管運算)
-│   └── routes.py           # FastAPI 端點 (包含 /create_vlog)
-├── main.py               aa  # 最乾淨的程式進入點 (負責啟動伺服器)
+├── vlog/
+│   ├── assets/             # 素材資料夾
+│   │   ├── images/         # 存放靜態觀光照片 (ZIP 壓縮檔上傳解析)
+│   │   ├── audio/          # 存放語音檔與 ASR 轉換音訊
+│   │   ├── bgm/            # 存放背景音樂 (mp3)
+│   │   └── dbs/            # (Git 略過) Neo4j 資料庫備份與檔案
+│   ├── output/             # 影片與語音輸出資料夾 (系統生成時自動建立)
+│   ├── core/               # 核心設定層
+│   │   └── config.py       # 全域路徑與常數設定
+│   ├── services/           # 業務邏輯層
+│   │   ├── asr_service.py  # 語音辨識服務
+│   │   ├── ser_service.py  # 語音情感分析服務
+│   │   ├── llm_service.py  # LLM 腳本與提示詞生成
+│   │   ├── tts_service.py  # 台灣腔高音質旁白生成
+│   │   ├── neo4j_service.py# Neo4j 知識圖譜 RAG 檢索
+│   │   └── moviepy_service.py # FFmpeg 影片串接與字幕燒錄
+│   ├── api/                # 路由層
+│   │   └── routes.py       # FastAPI 端點 (/visitor/create_vlog, /npc/speak 等)
+│   └── main.py             # 程式進入點 (啟動 FastAPI 伺服器)
 ├── requirements.txt        # 依賴套件清單
-└── .gitignore              # Git 忽略清單 (忽略 .venv 和 output 等)
+└── .gitignore              # Git 忽略清單 (自動排除 .venv、output 與大型 dump 檔)
+
 ```
 
-## 1. 建立虛擬環境
+---
 
-### Windows（PowerShell）
+## ⚙️ 快速安裝與環境建置
+
+### 1. 建立並啟動虛擬環境 (推薦使用 `uv` 或 `python`)
+
+#### **Windows（PowerShell）**
 
 ```powershell
-# 進入專案資料夾
-cd vlog_generator
-
-# 建立虛擬環境
-python -m venv .venv
-
-# 啟動虛擬環境
-.venv\Scripts\Activate.ps1
-```
-
-### Windows（cmd）
-
-```cmd
 cd vlog_generator
 python -m venv .venv
-.venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
+
 ```
 
-### macOS / Linux
+#### **macOS / Linux**
 
 ```bash
 cd vlog_generator
-python3 -m .venv venv
+python3 -m venv .venv
 source .venv/bin/activate
+
 ```
 
-啟動成功後，終端機前面會出現 `(.venv)`。 [docs.python](https://docs.python.org/zh-tw/3/library/venv.html)
+---
 
-## 2. 安裝依賴
+### 2. 安裝依賴套件
 
-```bash
-pip install moviepy
-```
-
-## 3.1. 產生 requirements.txt
-
-```bash
-pip freeze > requirements.txt
-```
-## 3.2. 產生 requirements.txt
+請確保虛擬環境已啟動，透過 `pip` 或高效能的 `uv` 安裝所有必要套件：
 
 ```bash
 pip install -r requirements.txt
+
 ```
 
-你的 `requirements.txt` 應該會長這樣：
+*(或使用 `uv pip install -r requirements.txt`)*
 
-```txt
-moviepy==2.1.1
-decorator==5.1.1
-imageio==2.35.1
-imageio-ffmpeg==0.5.0
-numpy==2.1.0
-pillow==11.0.0
-proglog==0.1.10
-```
+---
 
-## 4. 之後別人要使用
+## 🚀 執行專案
 
-別人拿到你的專案後，只需要：
+啟動 FastAPI 服務器：
 
 ```bash
-# 建立虛擬環境
-python -m venv .venv
+python vlog/main.py
 
-# 啟動虛擬環境
-# Windows
-.venv\Scripts\activate
-# macOS / Linux
-source .venv/bin/activate
-
-# 安裝依賴
-pip install -r requirements.txt
-
-# 執行程式
-python main.py
 ```
 
-## 5. .gitignore 設定
+*(或使用 `uv run python vlog/main.py`)*
 
-建立 `.gitignore` 檔案，避免把虛擬環境上傳到 Git：
+服務啟動後，你可以前往 **Swagger API 互動文件** 進行測試：
+👉 `http://localhost:8000/docs` （或對應的遠端伺服器網址）
 
-```gitignore
-# Python virtual environment
-.venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-ENV/
+---
 
-# Output files
-output/
+## 📡 主要 API 功能介紹
 
-# OS files
-.DS_Store
-Thumbs.db
-```
+1. **`POST /api/visitor/create_vlog`**
+* **功能**：上傳語音檔、照片壓縮檔（ZIP）、BGM 與景點清單。系統將自動進行 ASR 辨識、情感分析、Neo4j RAG 知識檢索、LLM 腳本生成、Edge-TTS 旁白朗讀，並透過 FFmpeg 產出帶有字幕的精美 Vlog 影片。
 
-## 6. 停用虛擬環境
 
-```bash
-deactivate
-```
+2. **`POST /api/npc/speak`**
+* **功能**：輸入文字，透過 Edge-TTS 動態生成活潑可愛的 NPC 專屬配音（mp3），適用於智慧導覽與對話互動。
 
-## 完整流程範例
 
-```bash
-# 1. 建立專案
-mkdir vlog_generator
-cd vlog_generator
+3. **`GET /api/check_status/{task_id}`**
+* **功能**：查詢背景非同步影音生成任務的進度與下載連結。
 
-# 2. 建立虛擬環境
-uv venv --python 3.11
 
-# 3. 啟動虛擬環境
-# Windows
-.\.venv\Scripts\activate
-# macOS / Linux
-source .venv/bin/activate
+4. **`POST /api/admin/upload_dump`**
+* **功能**：上傳 Neo4j 資料庫備份檔，供後端進行圖形資料庫還原。
 
-# 4. 安裝依賴
-pip install moviepy
 
-# 5. 產生 requirements.txt
-pip freeze > requirements.txt
 
-# 一行指令就能安裝完全部
-uv pip install -r requirements.txt
+---
 
-# 6. 把你的 main.py、config.py 放進來
-# 7. 執行程式
-uv run python main.py
+## 🛑 開發注意事項 (.gitignore 規範)
 
+<<<<<<< HEAD
 # 8. 完成後停用
 deactivate
 ```
@@ -173,3 +124,11 @@ curl -X POST "http://localhost:2026/api/visitor/create_vlog" \
   -F "spot_list=[\"南投環湖茶園\", \"竹林秘境\"]" \
   -F "image_files=[\"assets\images\img4.jpg\", \"assets\images\img6.jpg"]" \
   -F "bgm_file=assets\bgm\ikoliks_aj-background-music-320427.mp3"
+=======
+為了避免上傳過大的檔案或破壞版控，以下項目已被 `.gitignore` 自動忽略：
+
+* `.venv/` （虛擬環境）
+* `output/` （生成的影音檔案）
+* `assets/dbs/*.dump` （超過 100MB 的 Neo4j 資料庫備份）
+* `__pycache__/` 與系統暫存檔
+>>>>>>> 6ec79a8 (readme)
