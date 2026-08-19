@@ -3,7 +3,7 @@
 
 # 🎬 PlayTaiwan AI Vlog & NPC 智慧生成系統
 
-本專案是一個基於 **FastAPI**、**Whisper (ASR)**、**Wav2Vec2 (SER)**、**Llama 3 (LLM)**、**Neo4j (RAG 圖形資料庫)** 與 **Edge-TTS** 的智慧影音與 NPC 語音生成系統。專為觀光推廣與在地數位創新設計，能自動分析語音情緒與內容，結合圖形資料庫脈絡，產出帶有精美字幕與自動配音的高質感 Vlog 影片及 NPC 互動語音。
+本專案是一個基於 **FastAPI**、**Whisper (ASR)**、**Wav2Vec2 (SER)**、**Llama 3 (LLM)**、**Neo4j (RAG 圖形資料庫)**、**Edge-TTS** 與 **ComfyUI (RTX 5090 繪圖引擎)** 的智慧影音與 AI 明信片生成系統。專為觀光推廣與在地數位創新設計，能自動分析語音情緒與內容，結合圖形資料庫脈絡，產出帶有精美自動配音的高質感 Vlog 影片、NPC 互動語音以及展覽圖錄風格的 AI 明信片。
 
 ---
 
@@ -17,7 +17,7 @@ vlog_generator/
 │   │   ├── audio/          # 存放語音檔與 ASR 轉換音訊
 │   │   ├── bgm/            # 存放背景音樂 (mp3)
 │   │   └── dbs/            # (Git 略過) Neo4j 資料庫備份與檔案
-│   ├── output/             # 影片與語音輸出資料夾 (系統生成時自動建立)
+│   ├── output/             # 影片、語音與 AI 明信片輸出資料夾
 │   ├── core/               # 核心設定層
 │   │   └── config.py       # 全域路徑與常數設定
 │   ├── services/           # 業務邏輯層
@@ -26,12 +26,13 @@ vlog_generator/
 │   │   ├── llm_service.py  # LLM 腳本與提示詞生成
 │   │   ├── tts_service.py  # 台灣腔高音質旁白生成
 │   │   ├── neo4j_service.py# Neo4j 知識圖譜 RAG 檢索
+│   │   ├── postcard_service.py # ComfyUI AI 明信片生成服務
 │   │   └── moviepy_service.py # FFmpeg 影片串接與字幕燒錄
 │   ├── api/                # 路由層
-│   │   └── routes.py       # FastAPI 端點 (/visitor/create_vlog, /npc/speak 等)
+│   │   └── routes.py       # FastAPI 端點 (/visitor/create_vlog, /postcard/create_ai 等)
 │   └── main.py             # 程式進入點 (啟動 FastAPI 伺服器)
 ├── requirements.txt        # 依賴套件清單
-└── .gitignore              # Git 忽略清單 (自動排除 .venv、output 與大型 dump 檔)
+└── .gitignore              # Git 忽略清單 (自動排除 .venv、output 等)
 
 ```
 
@@ -39,12 +40,12 @@ vlog_generator/
 
 ## ⚙️ 快速安裝與環境建置
 
-### 1. 建立並啟動虛擬環境 (推薦使用 `uv` 或 `python`)
+### 1. 建立並啟動虛擬環境 (推薦使用 `uv`)
 
 #### **Windows（PowerShell）**
 
 ```powershell
-cd vlog_generator
+cd vlog_generator/vlog
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 
@@ -53,82 +54,92 @@ python -m venv .venv
 #### **macOS / Linux**
 
 ```bash
-cd vlog_generator
+cd vlog_generator/vlog
 python3 -m venv .venv
 source .venv/bin/activate
 
 ```
 
----
-
 ### 2. 安裝依賴套件
 
-請確保虛擬環境已啟動，透過 `pip` 或高效能的 `uv` 安裝所有必要套件：
+透過高效能的 `uv` 或 `pip` 安裝所有必要套件：
 
 ```bash
-pip install -r requirements.txt
+uv pip install -r ../requirements.txt
+# 或使用標準 pip
+pip install -r ../requirements.txt
 
 ```
-
-*(或使用 `uv pip install -r requirements.txt`)*
 
 ---
 
-## 🚀 執行專案
+## 🚀 系統啟動方式 (雙軌並行架構)
 
-啟動 FastAPI 服務器：
+本系統結合了 **ComfyUI 繪圖引擎 (Port 8188)** 與 **FastAPI 後端引擎 (Port 2026)**，請依序啟動以下服務：
+
+### 步驟一：啟動 ComfyUI 繪圖引擎 (指定顯卡與外部監聽)
+
+建議使用 `uv` 搭配指定 GPU 與 Port 8188 啟動：
 
 ```bash
-python vlog/main.py
+cd ~/playtaiwan/ComfyUI
+CUDA_VISIBLE_DEVICES=1 uv run python main.py --listen 0.0.0.0 --port 8188
 
 ```
 
-*(或使用 `uv run python vlog/main.py`)*
+### 步驟二：啟動 FastAPI 主程式服務
+
+開啟另一個終端機視窗，啟動你的 Vlog 引擎主後端（運行於 Port 2026）：
+
+```bash
+cd ~/playtaiwan/vlog_generator/vlog
+uv run python main.py
+
+```
 
 服務啟動後，你可以前往 **Swagger API 互動文件** 進行測試：
-👉 `http://localhost:8000/docs` （或對應的遠端伺服器網址）
+👉 `http://localhost:2026/api/docs`
 
 ---
 
-## 📡 主要 API 功能介紹
+## 📡 主要 API 功能與測試範例
 
-1. **`POST /api/visitor/create_vlog`**
-* **功能**：上傳語音檔、照片壓縮檔（ZIP）、BGM 與景點清單。系統將自動進行 ASR 辨識、情感分析、Neo4j RAG 知識檢索、LLM 腳本生成、Edge-TTS 旁白朗讀，並透過 FFmpeg 產出帶有字幕的精美 Vlog 影片。
+### 1. 🎨 AI 展覽圖錄風格明信片與導覽文字 (`POST /api/postcard/create_ai`)
 
+結合 Neo4j 知識圖譜、Llama 在地短文生成與 RTX 5090 繪圖引擎，產出高質感彩色水粉插畫明信片。
 
-2. **`POST /api/npc/speak`**
-* **功能**：輸入文字，透過 Edge-TTS 動態生成活潑可愛的 NPC 專屬配音（mp3），適用於智慧導覽與對話互動。
+### 2. 🎬 遊客端 Vlog 核心生成 (`POST /api/visitor/create_vlog`)
 
+上傳語音檔、照片壓縮檔（ZIP）、BGM 與景點清單，自動產出帶有字幕的精美 Vlog 影片。
 
-3. **`GET /api/check_status/{task_id}`**
-* **功能**：查詢背景非同步影音生成任務的進度與下載連結。
+**API 測試範例指令 (cURL)：**
 
+```bash
+curl -X POST "http://localhost:2026/api/visitor/create_vlog" \
+  -H "accept: application/json" \
+  -F "user_audio=@assets/audio/3.AI不是口號.m4a" \
+  -F "spot_list=[\"南投環湖茶園\", \"竹林秘境\"]" \
+  -F "image_zip=@assets/images/images.zip" \
+  -F "bgm_file=@assets/bgm/ikoliks_aj-background-music-320427.mp3"
 
-4. **`POST /api/admin/upload_dump`**
-* **功能**：上傳 Neo4j 資料庫備份檔，供後端進行圖形資料庫還原。
+```
 
+### 3. 🗣️ NPC 專屬配音 API (`POST /api/npc/speak`)
 
+輸入文字，動態生成活潑可愛的 NPC 專屬配音（mp3）。
+
+### 4. 🔍 任務狀態與下載端點
+
+* **`GET /api/check_status/{task_id}`**：查詢背景非同步影音任務進度。
+* **`GET /api/download/{filename}`**：下載產出的影片、語音或明信片檔案。
 
 ---
 
 ## 🛑 開發注意事項 (.gitignore 規範)
 
-<<<<<<< HEAD
-# 8. 完成後停用
-deactivate
-```
-
-curl -X POST "http://localhost:2026/api/visitor/create_vlog" \
-  -H "accept: application/json" \
-  -F "user_audio=assets\audio\3.AI不是口號.m4a" \
-  -F "spot_list=[\"南投環湖茶園\", \"竹林秘境\"]" \
-  -F "image_files=[\"assets\images\img4.jpg\", \"assets\images\img6.jpg"]" \
-  -F "bgm_file=assets\bgm\ikoliks_aj-background-music-320427.mp3"
-=======
 為了避免上傳過大的檔案或破壞版控，以下項目已被 `.gitignore` 自動忽略：
 
 * `.venv/` （虛擬環境）
-* `output/` （生成的影音檔案）
+* `output/` （生成的影音與圖片檔案）
 * `assets/dbs/*.dump` （超過 100MB 的 Neo4j 資料庫備份）
 * `__pycache__/` 與系統暫存檔
->>>>>>> 6ec79a8 (readme)
