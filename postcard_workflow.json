@@ -1,0 +1,121 @@
+{
+  "3": {
+    "inputs": {
+      "seed": 651920947181461,
+      "steps": 25,
+      "cfg": 8,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 0.58,
+      "model": [
+        "4",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler (圖錄風格轉譯)"
+    }
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "v1-5-pruned-emaonly.ckpt"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "載入檢查點"
+    }
+  },
+  "6": {
+    "inputs": {
+      "text": "An exhibition catalog style editorial illustration, minimalist, flat gouache and watercolor painting style. Large solid ivory paper white background, plenty of negative space. Muted Morandi color palette, dusty sage, sandy beige, slate blue. Simplify the scene into basic geometric shapes, remove all realistic shading, reflections, gradients, and textures. Clean edges, artistic poster look, elegant composition.",
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP 文字編碼（展覽圖錄風格正面提示詞）"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "photorealistic, 3d render, realistic lighting, realistic shadows, complex gradients, photography, magazine cover, border, frame, barcode, text, watermark, blurry, deformed",
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP 文字編碼（負面提示詞）"
+    }
+  },
+  "8": {
+    "inputs": {
+      "pixels": [
+        "10",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE 編碼"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "儲存圖片"
+    }
+  },
+  "10": {
+    "inputs": {
+      "image": "螢幕擷取畫面 2026-06-13 234937.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "載入圖片"
+    }
+  },
+  "11": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE 解碼"
+    }
+  }
+}

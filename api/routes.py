@@ -13,6 +13,7 @@ from services.tts_service import generate_tts
 from services.moviepy_service import process_vlog_task
 from services.ser_service import analyze_emotion
 from services.neo4j_rag_service import search_neo4j_rag
+from services.postcard_service import generate_postcard_text, generate_ai_postcard_image
 
 router = APIRouter()
 
@@ -21,7 +22,6 @@ router = APIRouter()
 # ----------------------------------------------------
 @router.post("/admin/upload_dump")
 async def upload_dump_file(file: UploadFile = File(...)):
-    # 將上傳的 dump 檔案儲存至專案根目錄 (OUTPUT_DIR 的上一層)
     target_path = OUTPUT_DIR.parent / file.filename
     with open(target_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
@@ -40,20 +40,15 @@ async def npc_speak_api(
     text: str = Form(..., description="LLM 產生的 NPC 對話文字"),
     voice: str = Form("zh-TW-HsiaoChenNeural", description="語音角色：zh-TW-HsiaoChenNeural (活潑) 或 zh-TW-HsiaoYuNeural (甜美)")
 ):
-    """
-    接收文字，透過 Edge-TTS 產生可愛活潑的 NPC 配音，並回傳 mp3 檔案路徑與下載網址
-    """
     task_id = str(uuid.uuid4())[:8]
     output_filename = f"npc_{task_id}.mp3"
     output_path = OUTPUT_DIR / output_filename
-    
+
     try:
         os.makedirs(str(OUTPUT_DIR), exist_ok=True)
-        
-        # 稍微提高語速與高音，讓聲音聽起來更活潑可愛
         communicate = edge_tts.Communicate(text, voice, rate="+10%", pitch="+5Hz")
         await communicate.save(str(output_path))
-        
+
         if output_path.exists() and output_path.stat().st_size > 0:
             return {
                 "status": "success",
@@ -64,35 +59,77 @@ async def npc_speak_api(
             }
         else:
             return JSONResponse(status_code=500, content={"message": "語音生成失敗，檔案大小為 0"})
-            
+
     except Exception as e:
         return JSONResponse(status_code=500, content={"message": f"TTS 發生錯誤: {str(e)}"})
+
+# ----------------------------------------------------
+# 新功能：AI 展覽圖錄與彩色風格明信片與 Neo4j 介紹文字生成
+# ----------------------------------------------------
+@router.post("/postcard/create_ai")
+async def create_ai_postcard_api(
+    user_image: UploadFile = File(..., description="上傳在地特色照片作為內容參考"),
+    spot_name: str = Form(..., description="地點名稱（例如：南投環湖茶園）"),
+    user_prompt: str = Form("", description="使用者的額外想法或座標描述"),
+    ai_art_prompt: str = Form(
+        "A vibrant and warm exhibition catalog style editorial illustration. Warm watercolor palette, soft pastel tones, beautiful natural colors, lush greens and soft blue sky. Artistic poster look, clean edges, no extra text, no watermarks",
+        description="預設的 AI 編輯插畫提示詞（彩色溫暖水彩風格）"
+    )
+):
+    """
+    結合 Neo4j 在地知識、LLM 導覽文字與 AI 繪圖（彩色溫暖水彩風格）生成文青明信片
+    """
+    task_id = str(uuid.uuid4())[:8]
+
+    # 1. 儲存使用者上傳的參考照片
+    img_extension = os.path.splitext(user_image.filename)[1] or ".jpg"
+    raw_img_path = str(IMAGES_DIR / f"postcard_raw_{task_id}{img_extension}")
+    with open(raw_img_path, "wb") as buffer:
+        shutil.copyfileobj(user_image.file, buffer)
+
+    # 2. 透過 Neo4j 與 LLM 產生在地文化特色介紹文字
+    postcard_text = generate_postcard_text(spot_name, user_prompt)
+
+    # 3. 呼叫 AI 圖片生成服務（帶入彩色溫暖風格提示詞）
+    final_img_path = await generate_ai_postcard_image(raw_img_path, spot_name, ai_art_prompt)
+    final_filename = os.path.basename(final_img_path)
+
+    return {
+        "status": "success",
+        "task_id": task_id,
+        "spot_name": spot_name,
+        "ai_prompt_applied": ai_art_prompt,
+        "postcard_introduction": postcard_text,
+        "download_url": f"https://vlog.angelalala.com/api/download/{final_filename}"
+    }
 
 # ----------------------------------------------------
 # 下載與檢查端點
 # ----------------------------------------------------
 @router.get("/check_status/{task_id}")
 async def check_status(task_id: str):
-    # 檢查 Vlog 或 Promo 檔案是否存在
-    possible_files = [f"vlog_{task_id}.mp4", f"promo_{task_id}.mp4", f"npc_{task_id}.mp3"]
-    for filename in possible_files:
-        if (OUTPUT_DIR / filename).exists():
-            return {"status": "ready", "download_url": f"https://vlog.angelalala.com/api/download/{filename}"}
+    possible_files = [f"vlog_{task_id}.mp4", f"promo_{task_id}.mp4", f"npc_{task_id}.mp3", f"ai_postcard_{task_id}.png"]
+    for filename in OUTPUT_DIR.glob(f"*{task_id}*.*"):
+        return {"status": "ready", "download_url": f"https://vlog.angelalala.com/api/download/{filename.name}"}
     return {"status": "processing", "message": "檔案生成中或尚未完成"}
 
 @router.get("/download/{filename}")
 async def download_video(filename: str):
     file_path = (OUTPUT_DIR / filename).resolve()
 
-    # 如果精準檔名不存在，透過 task_id 進行模糊搜尋以防檔名對不上
     if not file_path.exists():
-        task_id = filename.replace("vlog_", "").replace("promo_", "").replace("npc_", "").replace(".mp4", "").replace(".mp3", "")
+        task_id = filename.replace("vlog_", "").replace("promo_", "").replace("npc_", "").replace("ai_postcard_", "").replace(".mp4", "").replace(".mp3", "").replace(".jpg", "").replace(".png", "")
         for existing_file in OUTPUT_DIR.glob(f"*{task_id}*.*"):
             file_path = existing_file
             break
 
     if file_path.exists():
-        media_type = 'audio/mp3' if file_path.suffix == '.mp3' else 'video/mp4'
+        if file_path.suffix.lower() == '.mp3':
+            media_type = 'audio/mp3'
+        elif file_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.webp']:
+            media_type = 'image/png'
+        else:
+            media_type = 'video/mp4'
         return FileResponse(file_path, media_type=media_type, filename=file_path.name)
 
     return JSONResponse(status_code=404, content={"message": "找不到檔案，請確認任務是否已完成"})
