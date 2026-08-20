@@ -1,6 +1,4 @@
 
----
-
 # 🎬 PlayTaiwan AI Vlog & NPC 智慧生成系統
 
 本專案是一個基於 **FastAPI**、**Whisper (ASR)**、**Wav2Vec2 (SER)**、**Llama 3 (LLM)**、**Neo4j (RAG 圖形資料庫)**、**Edge-TTS** 與 **ComfyUI (RTX 5090 繪圖引擎)** 的智慧影音與 AI 明信片生成系統。專為觀光推廣與在地數位創新設計，能自動分析語音情緒與內容，結合圖形資料庫脈絡，產出帶有精美自動配音的高質感 Vlog 影片、NPC 互動語音以及展覽圖錄風格的 AI 明信片。
@@ -79,11 +77,13 @@ pip install -r ../requirements.txt
 
 ### 步驟一：啟動 ComfyUI 繪圖引擎 (指定顯卡與外部監聽)
 
-建議使用 `uv` 搭配指定 GPU 與 Port 8188 啟動：
+請切換至 ComfyUI 資料夾、啟動對應虛擬環境（並確保安裝好 `sqlalchemy` 等相依套件），再指定 GPU 與 Port 8188 啟動：
 
 ```bash
 cd ~/playtaiwan/ComfyUI
-CUDA_VISIBLE_DEVICES=1 uv run python main.py --listen 0.0.0.0 --port 8188
+source .venv/bin/activate
+# 若尚未安裝相依套件，請先執行：pip install -r requirements.txt
+CUDA_VISIBLE_DEVICES=1 python3 main.py --listen 0.0.0.0 --port 8188
 
 ```
 
