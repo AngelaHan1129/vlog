@@ -2,11 +2,11 @@
   "3": {
     "inputs": {
       "seed": 651920947181461,
-      "steps": 25,
-      "cfg": 8,
-      "sampler_name": "euler",
+      "steps": 28,
+      "cfg": 7.0,
+      "sampler_name": "euler_ancestral",
       "scheduler": "normal",
-      "denoise": 0.58,
+      "denoise": 0.60,
       "model": [
         "4",
         0
@@ -26,7 +26,7 @@
     },
     "class_type": "KSampler",
     "_meta": {
-      "title": "KSampler (圖錄風格轉譯)"
+      "title": "KSampler (結構化水粉插畫轉譯)"
     }
   },
   "4": {
@@ -40,7 +40,7 @@
   },
   "6": {
     "inputs": {
-      "text": "An exhibition catalog style editorial illustration, minimalist, flat gouache and watercolor painting style. Large solid ivory paper white background, plenty of negative space. Muted Morandi color palette, dusty sage, sandy beige, slate blue. Simplify the scene into basic geometric shapes, remove all realistic shading, reflections, gradients, and textures. Clean edges, artistic poster look, elegant composition.",
+      "text": "minimalist editorial illustration, exhibition catalog style, warm flat gouache color blocks, clean geometric shapes, muted terracotta, dusty blue, sandy beige, ivory paper background, generous white negative space. Keep exact building silhouettes and major lines from the reference structure. No photorealism, no grayscale, no sketches.",
       "clip": [
         "4",
         1
@@ -48,12 +48,12 @@
     },
     "class_type": "CLIPTextEncode",
     "_meta": {
-      "title": "CLIP 文字編碼（展覽圖錄風格正面提示詞）"
+      "title": "正面提示詞"
     }
   },
   "7": {
     "inputs": {
-      "text": "photorealistic, 3d render, realistic lighting, realistic shadows, complex gradients, photography, magazine cover, border, frame, barcode, text, watermark, blurry, deformed",
+      "text": "photorealistic, realistic photo, grayscale, pencil sketch, monochrome, blurry, 3d render, detailed shading, photography, text, watermark",
       "clip": [
         "4",
         1
@@ -61,13 +61,13 @@
     },
     "class_type": "CLIPTextEncode",
     "_meta": {
-      "title": "CLIP 文字編碼（負面提示詞）"
+      "title": "負面提示詞"
     }
   },
   "8": {
     "inputs": {
       "pixels": [
-        "10",
+        "12",
         0
       ],
       "vae": [
@@ -95,7 +95,7 @@
   },
   "10": {
     "inputs": {
-      "image": "螢幕擷取畫面 2026-06-13 234937.png"
+      "image": "placeholder.jpg"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -116,6 +116,22 @@
     "class_type": "VAEDecode",
     "_meta": {
       "title": "VAE 解碼"
+    }
+  },
+  "12": {
+    "inputs": {
+      "upscale_method": "bicubic",
+      "width": 768,
+      "height": 512,
+      "crop": "disabled",
+      "image": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "圖片縮放"
     }
   }
 }

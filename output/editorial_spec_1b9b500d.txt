@@ -1,0 +1,12 @@
+=== Editorial Vision Studio Compiled Spec ===
+Preset: ivory-postcard
+Target Spot: string
+User Context: 
+
+--- Core Anchor Rules --- 
+1. 暖象牙白紙底，平整均勻無顆粒無汙漬。
+2. 以 3-5 種簡化形體重新構成 string 場景，保留相對空間與遮擋關係。
+3. 單一平視立面投影，統一地平面，左上方單一光源與平塗接觸陰影。
+4. 主體縮小置於上方中央，保留至少 55% 安靜空白。
+5. 不透明水粉筆觸，低飽和莫蘭迪色盤（暖象牙白、炭褐色、低飽和大地色）。
+6. 嚴格避免寫實攝影、半透明疊影、複雜透視、浮水印與多餘文字。
