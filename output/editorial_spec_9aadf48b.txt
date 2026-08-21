@@ -1,0 +1,4 @@
+--- Editorial Vision Studio Spec ---
+Preset: ivory-postcard
+Target: 台北101
+Prompt: Minimalist editorial exhibition catalog illustration of 台北101. Extract and preserve the core architectural silhouettes and recognizable structural features from the reference image, while completely stripping away photorealistic textures, complex lighting, and photographic gradients. Flat gouache color blocks, soft watercolor shading, muted Morandi color palette, generous negative space. Clean vector lines, artistic zine style.

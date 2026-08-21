@@ -1,0 +1,4 @@
+--- Editorial Vision Studio Spec ---
+Preset: ivory-postcard
+Target: taipei 101
+Prompt: Masterpiece minimalist digital illustration of taipei 101, exhibition catalog art style, flat gouache color blocks, delicate clean vector lines, soft watercolor shading, muted Morandi color palette, ivory paper background, generous white negative space. Preserve the core architectural silhouette of taipei 101.

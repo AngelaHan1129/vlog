@@ -1,0 +1,4 @@
+--- Editorial Vision Studio Spec ---
+Preset: ivory-postcard
+Target: string
+Spec: Editorial exhibition catalog layout for string. Ground: ivory-paper background, render_mode: clean gallery zine framing. Preserve 100% original architectural structure and identity. Generous negative space with elegant bottom-border typography.

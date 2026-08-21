@@ -1,0 +1,4 @@
+--- Editorial Vision Studio Spec ---
+Preset: ivory-postcard
+Target: string
+Prompt: Minimalist editorial exhibition catalog illustration of string. Warm ivory paper background (ground: paper-light), flat gouache and soft watercolor shapes (render_mode: painterly). Accurately preserve the iconic architectural silhouette and multi-tiered traditional roof structure of string from the reference photo, along with the delicate cherry blossom tree branches in the foreground. Muted Morandi color palette, generous 55% negative space, single top-center placement. At the bottom border, include a small elegant serif title reading 'string'.
