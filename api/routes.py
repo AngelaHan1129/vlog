@@ -5,7 +5,9 @@ import json
 import zipfile
 import edge_tts
 
-from fastapi import APIRouter, BackgroundTasks, UploadFile, File, Form
+from typing import Optional, Dict, Any
+from pydantic import BaseModel
+from fastapi import APIRouter, BackgroundTasks, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 
 from core.config import (
@@ -20,7 +22,9 @@ from services.llm_service import generate_vlog_content_with_template
 from services.tts_service import generate_tts
 from services.moviepy_service import process_vlog_task
 from services.ser_service import analyze_emotion
-from services.neo4j_rag_service import search_neo4j_rag
+
+# 💡 修改這裡：引入重構後的 execute_readonly_cypher
+from services.neo4j_rag_service import search_neo4j_rag, execute_readonly_cypher
 
 from services.postcard_service import (
     generate_postcard_text,
@@ -63,6 +67,43 @@ async def upload_dump_file(
                 "message": f"Dump 檔案上傳失敗：{str(e)}"
             }
         )
+
+
+# ============================================================
+# Neo4j 唯讀 Cypher 查詢 API (供前端/外部探索資料)
+# ============================================================
+
+class CypherQueryRequest(BaseModel):
+    query: str
+    parameters: Optional[Dict[str, Any]] = {}
+
+@router.post("/neo4j/cypher")
+async def execute_raw_cypher(req: CypherQueryRequest):
+    """
+    接收前端傳來的 Cypher 語法並回傳查詢結果。
+    ⚠️ 具備安全限制：僅允許執行 MATCH 查詢，嚴禁修改語法。
+    """
+    try:
+        # 將複雜的邏輯全部交給 Service 層處理
+        records = execute_readonly_cypher(req.query, req.parameters)
+        
+        return {
+            "status": "success",
+            "count": len(records),
+            "data": records
+        }
+
+    except ValueError as ve:
+        # 捕捉 Service 丟出的安全警告 (403 Forbidden)
+        return JSONResponse(status_code=403, content={"status": "error", "message": str(ve)})
+        
+    except ConnectionError as ce:
+        # 捕捉 Service 丟出的連線失敗 (503 Service Unavailable)
+        return JSONResponse(status_code=503, content={"status": "error", "message": str(ce)})
+        
+    except Exception as e:
+        # 捕捉 Cypher 語法錯誤或其他未預期錯誤 (400 Bad Request)
+        return JSONResponse(status_code=400, content={"status": "error", "message": str(e)})
 
 
 # ============================================================
@@ -131,7 +172,7 @@ async def npc_speak_api(
 
 
 # ============================================================
-# AI 展覽圖錄風格明信片 (已移除 ai_art_prompt 參數)
+# AI 展覽圖錄風格明信片
 # ============================================================
 
 @router.post("/postcard/create_ai")
