@@ -128,3 +128,34 @@ def execute_readonly_cypher(query: str, parameters: dict = None) -> list:
         return records
     except Exception as e:
         raise Exception(f"Cypher 語法執行錯誤: {str(e)}")
+
+# ============================================================
+# 3. 實境劇本自動生成之節點抽樣 (供後台企劃 API 使用)
+# ============================================================
+def fetch_locations_for_script(town_name: str, limit: int = 4) -> list:
+    """
+    依據鄉鎮名稱，從資料庫中隨機撈取指定數量的真實景點/餐廳。
+    用作 AI 一鍵生成實境劇本 (md_story_node) 的地標錨點。
+    """
+    driver = _get_driver()
+    if not driver:
+        raise ConnectionError("Neo4j 資料庫未連線，無法撈取實體景點。")
+
+    query = """
+    MATCH (place)-[:LOCATED_IN_TOWN]->(t:Town {name: $town_name})
+    WHERE place:Attraction OR place:Restaurant
+    RETURN labels(place)[0] AS type, 
+           place.name AS name, 
+           place.description AS description, 
+           place.address AS address
+    ORDER BY rand()
+    LIMIT $limit
+    """
+    
+    try:
+        with driver.session() as session:
+            result = session.run(query, town_name=town_name, limit=limit)
+            return [dict(record) for record in result]
+    except Exception as e:
+        print(f"⚠️ 獲取 {town_name} 劇本地點失敗: {e}")
+        return []
