@@ -143,3 +143,55 @@ curl -X POST "http://localhost:2026/api/visitor/create_vlog" \
 * `output/` （生成的影音與圖片檔案）
 * `assets/dbs/*.dump` （超過 100MB 的 Neo4j 資料庫備份）
 * `__pycache__/` 與系統暫存檔
+
+## 🙀服務站用
+當 Port 8188（通常是你的 ComfyUI 繪圖引擎）被佔用時，通常是因為之前啟動的 Python 行程沒有被正確關閉，仍在背景默默運作。
+
+你可以透過以下步驟找出並終止佔用該 Port 的行程：
+
+### 步驟一：找出是哪個行程佔用了 Port 8188
+
+在終端機輸入以下指令：
+
+```bash
+sudo lsof -i :8188
+
+```
+
+*(如果系統提示 `lsof: command not found`，可以改用 `sudo ss -lptn 'sport = :8188'`)*
+
+執行後，你會看到類似下面的輸出：
+
+```text
+COMMAND   PID USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
+python3  12345 jackstar    3u  IPv4  ...      0t0 TCP *:8188 (LISTEN)
+
+```
+
+注意看 **`PID`**（例如上面的 `12345`）。
+
+---
+
+### 步驟二：強制終止該行程
+
+拿到 PID 之後，使用 `kill` 指令將它關閉：
+
+```bash
+sudo kill -9 12345
+
+```
+
+*(請將 `12345` 換成你畫面中實際看到的數字)*
+
+---
+
+### 步驟三：重新啟動服務
+
+行程被殺掉後，Port 就釋放了。這時你就可以再次順利啟動你的 ComfyUI：
+
+```bash
+cd ~/playtaiwan/ComfyUI
+source .venv/bin/activate
+CUDA_VISIBLE_DEVICES=1 python3 main.py --listen 0.0.0.0 --port 8188
+
+```
