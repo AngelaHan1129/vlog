@@ -6,8 +6,8 @@ import zipfile
 import edge_tts
 
 from typing import Optional, Dict, Any
-from pydantic import BaseModel
-from fastapi import APIRouter, BackgroundTasks, UploadFile, File, Form, HTTPException
+from pydantic import BaseModel, Field
+from fastapi import APIRouter, BackgroundTasks, UploadFile, File, Form, HTTPException, Request, Body
 from fastapi.responses import FileResponse, JSONResponse
 
 from core.config import (
@@ -22,12 +22,10 @@ from services.llm_service import generate_vlog_content_with_template
 from services.tts_service import generate_tts
 from services.moviepy_service import process_vlog_task
 from services.ser_service import analyze_emotion
-from services.neo4j_rag_service import search_neo4j_rag, execute_readonly_cypher
 from services.postcard_service import (
     generate_postcard_text,
     generate_ai_postcard_image
 )
-from fastapi import Request, Body
 from services.llm_service import generate_story_node, generate_script_blueprint
 from services.neo4j_rag_service import search_neo4j_rag, execute_readonly_cypher, fetch_locations_for_script
 
@@ -57,8 +55,21 @@ async def upload_dump_file(file: UploadFile = File(...)):
 # Neo4j 唯讀 Cypher 查詢 API (供前端/外部探索資料)
 # ============================================================
 class CypherQueryRequest(BaseModel):
-    query: str
-    parameters: Optional[Dict[str, Any]] = {}
+    query: str = Field(
+        default="MATCH (a:Attraction) RETURN a.name LIMIT 5",
+        description="Cypher 查詢語法 (僅限 MATCH 讀取操作)"
+    )
+    parameters: Optional[Dict[str, Any]] = Field(default={}, description="查詢參數對應字典")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "query": "MATCH (a:Attraction)-[:LOCATED_IN_TOWN]->(t:Town {name: $town_name}) RETURN a.name, a.address LIMIT 5",
+                "parameters": {
+                    "town_name": "中西區"
+                }
+            }
+        }
 
 @router.post("/neo4j/cypher")
 async def execute_raw_cypher(req: CypherQueryRequest):
@@ -82,8 +93,8 @@ async def execute_raw_cypher(req: CypherQueryRequest):
 # ============================================================
 @router.post("/npc/speak")
 async def npc_speak_api(
-    text: str = Form(..., description="LLM 產生的 NPC 對話文字"),
-    voice: str = Form("zh-TW-HsiaoChenNeural", description="語音角色：zh-TW-HsiaoChenNeural（活潑）或 zh-TW-HsiaoYuNeural（甜美）")
+    text: str = Form("歡迎來到府城，請跟著我一起尋找失落的卷軸。", description="LLM 產生的 NPC 對話文字"),
+    voice: str = Form("zh-TW-HsiaoChenNeural", description="語音角色：zh-TW-HsiaoChenNeural（活潑女）或 zh-TW-YunJheNeural（沉穩男）")
 ):
     task_id = str(uuid.uuid4())[:8]
     output_filename = f"npc_{task_id}.mp3"
@@ -111,8 +122,8 @@ async def npc_speak_api(
 @router.post("/postcard/create_ai")
 async def create_ai_postcard_api(
     user_image: UploadFile = File(..., description="上傳景點照片"),
-    spot_name: str = Form(..., description="地點名稱"),
-    user_prompt: str = Form("", description="額外描述")
+    spot_name: str = Form("臺南孔廟", description="地點名稱"),
+    user_prompt: str = Form("復古水墨風，帶有文青質感", description="額外繪圖描述")
 ):
     task_id = str(uuid.uuid4())[:8]
     try:
@@ -120,10 +131,10 @@ async def create_ai_postcard_api(
         raw_img_path = str(IMAGES_DIR / f"postcard_raw_{task_id}.jpg")
         with open(raw_img_path, "wb") as buffer:
             shutil.copyfileobj(user_image.file, buffer)
-        
+
         postcard_text = generate_postcard_text(spot_name, user_prompt)
         print(f"🎨 [POSTCARD] 開始生成雜誌風明信片：{task_id}")
-        
+
         final_img_path = await generate_ai_postcard_image(raw_img_path, spot_name, user_prompt, task_id)
         return {
             "status": "success",
@@ -143,14 +154,13 @@ async def create_ai_postcard_api(
 async def check_status(task_id: str):
     try:
         possible_prefixes = [
-            f"vlog_{task_id}", f"promo_{task_id}", f"npc_{task_id}", 
+            f"vlog_{task_id}", f"promo_{task_id}", f"npc_{task_id}",
             f"ai_postcard_{task_id}", f"metadata_{task_id}"
         ]
         for file_path in OUTPUT_DIR.glob("*"):
             if not file_path.is_file(): continue
             filename = file_path.name
             if any(filename.startswith(prefix) for prefix in possible_prefixes):
-                # 如果是影片/圖片/音檔則當作主要回傳對象
                 if not filename.startswith("metadata_"):
                     return {
                         "status": "ready",
@@ -214,33 +224,30 @@ def process_uploads(task_id, user_audio, image_zip, bgm_file):
     os.makedirs(str(IMAGES_DIR), exist_ok=True)
     os.makedirs(str(AUDIO_DIR), exist_ok=True)
     os.makedirs(str(BGM_DIR), exist_ok=True)
-    
-    # 儲存與轉檔語音
+
     audio_ext = os.path.splitext(user_audio.filename or ".wav")[1] or ".wav"
     raw_audio_path = str(AUDIO_DIR / f"raw_{task_id}{audio_ext}")
     clean_audio_path = str(AUDIO_DIR / f"upload_{task_id}.wav")
-    
+
     with open(raw_audio_path, "wb") as buffer:
         shutil.copyfileobj(user_audio.file, buffer)
     os.system(f'ffmpeg -y -i "{raw_audio_path}" -ar 16000 -ac 1 "{clean_audio_path}" > /dev/null 2>&1')
 
-    # 解壓縮圖片
     zip_temp_path = str(IMAGES_DIR / f"{task_id}_images.zip")
     extract_to = str(IMAGES_DIR / f"{task_id}_extracted")
     with open(zip_temp_path, "wb") as buffer:
         shutil.copyfileobj(image_zip.file, buffer)
-    
+
     os.makedirs(extract_to, exist_ok=True)
     with zipfile.ZipFile(zip_temp_path, "r") as zip_ref:
         zip_ref.extractall(extract_to)
-        
+
     full_image_paths = []
     for root, dirs, files in os.walk(extract_to):
         for file in files:
             if file.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
                 full_image_paths.append(os.path.join(root, file))
 
-    # 儲存 BGM
     bgm_filename = bgm_file.filename or f"bgm_{task_id}.mp3"
     bgm_path = str(BGM_DIR / f"{task_id}_{bgm_filename}")
     with open(bgm_path, "wb") as buffer:
@@ -258,9 +265,9 @@ async def visitor_vlog_api(
     user_audio: UploadFile = File(..., description="上傳語音檔 (mp3/m4a/wav)"),
     image_zip: UploadFile = File(..., description="上傳包含多張照片的 ZIP 壓縮檔"),
     bgm_file: UploadFile = File(..., description="上傳背景音樂檔 (mp3)"),
-    spot_list: str = Form('["南投環湖茶園"]', description="景點清單 (JSON或逗號分隔)"),
-    play_time: str = Form("", description="遊玩時長 (例如: 2.5小時)"),
-    game_tasks: str = Form("", description="解鎖任務 (例如: 收集三顆茶葉寶石)")
+    spot_list: str = Form('["臺南孔廟", "赤崁樓"]', description="景點清單 (JSON格式或逗號分隔)"),
+    play_time: str = Form("2.5小時", description="遊玩時長"),
+    game_tasks: str = Form("完成府城解謎任務", description="解鎖任務")
 ):
     task_id = str(uuid.uuid4())[:8]
     filename = f"vlog_{task_id}.mp4"
@@ -270,7 +277,6 @@ async def visitor_vlog_api(
         raw_text = transcribe_audio(clean_audio_path)
         emotion = analyze_emotion(clean_audio_path)
 
-        # 解析景點清單並執行 Neo4j RAG
         try:
             spots = json.loads(spot_list)
             if not isinstance(spots, list): spots = [str(spots)]
@@ -279,7 +285,6 @@ async def visitor_vlog_api(
 
         rag_context = "\n".join([search_neo4j_rag(spot) for spot in spots])
 
-        # LLM 腳本生成 (含行銷/關鍵字客群分析回傳)
         script_data = generate_vlog_content_with_template(
             raw_text=raw_text,
             emotion=emotion,
@@ -289,7 +294,6 @@ async def visitor_vlog_api(
             game_tasks=game_tasks
         )
 
-        # 儲存客群分析 Metadata 供 .NET 端拉取
         os.makedirs(str(OUTPUT_DIR), exist_ok=True)
         metadata_path = OUTPUT_DIR / f"metadata_{task_id}.json"
         with open(metadata_path, "w", encoding="utf-8") as f:
@@ -302,7 +306,6 @@ async def visitor_vlog_api(
 
         tts_path = await generate_tts(script_data["tw_script"])
 
-        # 啟動背景生成排程
         bg_tasks.add_task(
             process_vlog_task,
             task_id, full_image_paths, script_data["en_video_prompt"],
@@ -330,8 +333,8 @@ async def merchant_vlog_api(
     user_audio: UploadFile = File(..., description="商家配音或口白 (mp3/m4a/wav)"),
     image_zip: UploadFile = File(..., description="主打商品/環境照片 ZIP"),
     bgm_file: UploadFile = File(..., description="背景音樂檔 (mp3)"),
-    merchant_name: str = Form(..., description="商家或餐廳名稱"),
-    promo_info: str = Form(..., description="優惠活動或主打商品描述")
+    merchant_name: str = Form("赤崁擔仔麵", description="商家或餐廳名稱"),
+    promo_info: str = Form("來店消費打卡送府城傳統冬瓜茶", description="優惠活動或主打商品描述")
 ):
     task_id = str(uuid.uuid4())[:8]
     filename = f"promo_{task_id}.mp4"
@@ -341,10 +344,8 @@ async def merchant_vlog_api(
         raw_text = transcribe_audio(clean_audio_path)
         emotion = analyze_emotion(clean_audio_path)
 
-        # 從 Neo4j 撈取商家資訊與周邊脈絡
         rag_context = search_neo4j_rag(merchant_name)
 
-        # LLM 腳本生成 (針對商家行銷優化)
         script_data = generate_vlog_content_with_template(
             raw_text=raw_text,
             emotion=emotion,
@@ -353,7 +354,6 @@ async def merchant_vlog_api(
             promo_info=promo_info
         )
 
-        # 儲存客群分析 Metadata 供 .NET 端拉取
         os.makedirs(str(OUTPUT_DIR), exist_ok=True)
         metadata_path = OUTPUT_DIR / f"metadata_{task_id}.json"
         with open(metadata_path, "w", encoding="utf-8") as f:
@@ -366,7 +366,6 @@ async def merchant_vlog_api(
 
         tts_path = await generate_tts(script_data["tw_script"])
 
-        # 啟動背景生成排程
         bg_tasks.add_task(
             process_vlog_task,
             task_id, full_image_paths, script_data["en_video_prompt"],
@@ -390,7 +389,48 @@ async def merchant_vlog_api(
 # ============================================================
 @router.post("/v1/generate")
 async def generate_game_story(
-    payload: dict = Body(..., description="請貼上符合 Input Schema 的 JSON Payload")
+    payload: dict = Body(
+        ...,
+        description="請貼上符合規格書的 JSON Payload",
+        example={
+            "session_id": "sess_20260825_001",
+            "node_id": "node_tainan_001",
+            "node_type": "dialogue",
+            "model": "llama-3-8b",
+            "temperature": 0.7,
+            "max_tokens": 400,
+            "response_format": {"type": "json_object"},
+            "location": {
+                "location_id": "place_tainan_confucius",
+                "name": "臺南孔廟",
+                "address": "臺南市中西區南門路2號",
+                "description": "臺南重要的文史景點，被稱為全臺首學。",
+                "opening_hours": "08:30-17:30",
+                "tags": ["文史建築", "古蹟"]
+            },
+            "player_preferences": ["解謎深入", "文學建築"],
+            "npcs": [
+                {
+                    "npc_id": "npc_scholar_001",
+                    "name": "青光書生",
+                    "role": "遺失卷軸的府城儒生",
+                    "intro": "一位準備赴考的書生，在府城遺失了承載重要記憶的卷軸。",
+                    "personality": ["文質彬彬", "焦急"],
+                    "speech_style": "用詞稍微文雅，語氣誠懇",
+                    "preferences": {"likes": ["願意幫忙的旅人"], "dislikes": ["輕浮敷衍"]},
+                    "knowledge_scope": {"expert": ["府城歷史"], "aware": ["赤崁樓"], "unknown": ["現代科技"]},
+                    "relationships": {},
+                    "handoff_rules": []
+                }
+            ],
+            "node_context": {
+                "goal": "引導玩家尋找孔廟內的第一道線索",
+                "scene_description": "玩家剛踏入孔廟大門，看見一位書生神情焦急。"
+            },
+            "dialogue_history": [],
+            "player_input": "請問手稿長什麼樣子？"
+        }
+    )
 ):
     """
     接收後端打來的 JSON Payload，依據 node_type 分流處理。
@@ -405,40 +445,57 @@ async def generate_game_story(
         print(f"❌ /v1/generate 發生未預期錯誤：{e}")
         return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
+
 # ============================================================
-# 後台工具：AI 一鍵生成實境解謎劇本藍圖 API
+# 後台工具：AI 一鍵生成實境解謎劇本藍圖 API (支援動態動線與日夜模式)
 # ============================================================
 class ScriptGenRequest(BaseModel):
-    town_name: str     # 例如: "北投區", "安平區"
-    theme: str         # 例如: "百年溫泉的秘密", "荷蘭時期的尋寶"
-    node_count: int = 4 # 預設 4 個節點 (起承轉合)
+    town_name: str = Field(default="中西區", description="Neo4j 中的鄉鎮區名稱 (例如: 中西區、安平區)")
+    theme: str = Field(default="府城百年商號的秘密", description="遊戲劇本主題或核心概念")
+    node_count: int = Field(default=4, description="關卡數量 (支援 3 站快閃或 5-6 站深度遊)")
+    is_night: bool = Field(default=False, description="是否為夜間模式 (True: 解鎖夜間光影與過夜支線)")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "town_name": "中西區",
+                "theme": "府城百年商號的秘密",
+                "node_count": 4,
+                "is_night": False
+            }
+        }
 
 @router.post("/admin/generate_script_blueprint")
 async def api_generate_script_blueprint(req: ScriptGenRequest):
     """
-    【企劃後台專用】
-    給定鄉鎮區與主題，系統會透過 Neo4j (RAG) 撈出真實景點，
-    並由 Llama 3 套用 13 種任務模型，生成帶有「起、承、轉、合」的結構化 JSON 劇本。
+    【企劃後台專用 - 智慧動線版】
+    給定鄉鎮區、主題、關卡數與日夜模式，系統會透過 Neo4j 混合撈取真實景點、餐廳與旅宿，
+    並由 Llama 3 生成帶有「食、宿、遊」完整動線的結構化 JSON 劇本。
     """
     try:
-        # 1. 從 Neo4j 撈出真實景點 (RAG 錨點)
-        locations = fetch_locations_for_script(req.town_name, limit=req.node_count)
-        
-        if len(locations) < req.node_count:
+        # 1. 動態混合撈取地點 (自動依據 limit 和 is_night 分配 景點 ➡️ 餐廳 ➡️ 旅宿)
+        locations = fetch_locations_for_script(
+            town_name=req.town_name, 
+            limit=req.node_count, 
+            is_night=req.is_night
+        )
+
+        if not locations:
             return JSONResponse(
-                status_code=400, 
-                content={"message": f"Neo4j 中 {req.town_name} 的可用景點數量不足 {req.node_count} 個。"}
+                status_code=400,
+                content={"status": "error", "message": f"Neo4j 中找不到鄉鎮區為「{req.town_name}」的地點資料。"}
             )
 
         # 2. 丟給 LLM 進行劇本創作
         script_blueprint = generate_script_blueprint(
             theme=req.theme,
             town_name=req.town_name,
-            locations=locations
+            locations=locations,
+            is_night=req.is_night
         )
 
         return {"status": "success", "data": script_blueprint}
-        
+
     except Exception as e:
         print(f"❌ 劇本藍圖生成失敗：{e}")
         return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
