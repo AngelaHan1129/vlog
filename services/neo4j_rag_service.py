@@ -22,7 +22,7 @@ def execute_readonly_cypher(query: str, parameters: dict = None):
     driver = _get_driver()
     if not driver:
         raise ConnectionError("Neo4j 資料庫未連線。")
-    
+
     if not query.strip().upper().startswith("MATCH"):
         raise ValueError("安全性限制：僅允許執行 MATCH 查詢語法。")
 
@@ -30,15 +30,19 @@ def execute_readonly_cypher(query: str, parameters: dict = None):
         result = session.run(query, parameters or {})
         return [dict(record) for record in result]
 
-def search_neo4j_rag(keyword: str) -> str:
+def search_neo4j_rag(keyword: str, **kwargs) -> str:
+    """
+    根據關鍵字檢索 Neo4j 中的在地知識。
+    使用 **kwargs 接收其他未使用的參數（如 is_night_mode 等），避免多餘參數傳入時報錯。
+    """
     driver = _get_driver()
     if not driver:
         return "Neo4j 未連線，無法提供在地背景知識。"
-    
+
     query = """
     MATCH (n)
     WHERE n.name CONTAINS $keyword OR n.EventName CONTAINS $keyword
-    RETURN COALESCE(n.name, n.EventName) AS name, 
+    RETURN COALESCE(n.name, n.EventName) AS name,
            COALESCE(n.description, n.Description, "暫無介紹") AS desc,
            COALESCE(n.address, n.TrafficInfo, "無地址") AS addr
     LIMIT 3
@@ -68,9 +72,9 @@ def fetch_locations_for_script(town_name: str, limit: int = 4, is_night: bool = 
     WHERE place:%s
     OPTIONAL MATCH (place)-[:HAS_TAG]->(tag:Tag)
     OPTIONAL MATCH (place)-[:HAS_CUISINE]->(cu:Cuisine)
-    RETURN labels(place)[0] AS type, 
-           COALESCE(place.name, "未知名稱") AS name, 
-           COALESCE(place.description, "暫無介紹") AS description, 
+    RETURN labels(place)[0] AS type,
+           COALESCE(place.name, "未知名稱") AS name,
+           COALESCE(place.description, "暫無介紹") AS description,
            COALESCE(place.address, "無地址") AS address,
            place.ticket_info AS ticket_info,
            collect(DISTINCT tag.name) AS tags,
@@ -80,7 +84,7 @@ def fetch_locations_for_script(town_name: str, limit: int = 4, is_night: bool = 
     """
 
     target_labels = []
-    
+
     if is_night:
         target_labels = ["Restaurant", "Attraction", "Hotel"]
         while len(target_labels) < limit:
