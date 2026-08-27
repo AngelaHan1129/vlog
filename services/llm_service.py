@@ -1,5 +1,6 @@
 import torch
 import json
+import random
 from pydantic import ValidationError
 from api.schemas import (
     DialogueInput, DialogueOutput,
@@ -120,7 +121,7 @@ def generate_story_node(payload_dict: dict) -> dict:
     {{
       "npc_id": "{getattr(npc, 'npc_id', 'npc_01')}",
       "line": "NPC 回應玩家的台詞 (繁體中文)",
-      "emotion": "happy", 
+      "emotion": "happy",
       "handoff_to": null
     }}
   ],
@@ -135,21 +136,20 @@ def generate_story_node(payload_dict: dict) -> dict:
 """
 
         msgs = [
-            {"role": "system", "content": sys_prompt}, 
+            {"role": "system", "content": sys_prompt},
             {"role": "user", "content": f"玩家剛才說：「{req.player_input}」。請根據上述規範產生對應的 JSON 回應。"}
         ]
 
         for attempt in range(max_retries):
             try:
                 outputs = llm(
-                    msgs, 
-                    max_new_tokens=req.max_tokens or 400, 
+                    msgs,
+                    max_new_tokens=req.max_tokens or 400,
                     temperature=req.temperature or 0.7,
                     do_sample=True
                 )
                 raw_json = _parse_llm_json(outputs[0]["generated_text"][-1]["content"])
-                
-                # 自動確保返回的 JSON 帶有正確的 ID，避免驗證失敗
+
                 if "location_id" not in raw_json or not raw_json["location_id"]:
                     raw_json["location_id"] = req.location.location_id
                 if "node_id" not in raw_json or not raw_json["node_id"]:
@@ -181,7 +181,7 @@ def generate_story_node(payload_dict: dict) -> dict:
             try:
                 outputs = llm(msgs, max_new_tokens=req.max_tokens or 400, temperature=req.temperature or 0.7, do_sample=True)
                 raw_json = _parse_llm_json(outputs[0]["generated_text"][-1]["content"])
-                
+
                 if "day_index" not in raw_json:
                     raw_json["day_index"] = req.day_index
 
@@ -207,7 +207,7 @@ def generate_story_node(payload_dict: dict) -> dict:
             try:
                 outputs = llm(msgs, max_new_tokens=req.max_tokens or 400, temperature=req.temperature or 0.7, do_sample=True)
                 raw_json = _parse_llm_json(outputs[0]["generated_text"][-1]["content"])
-                
+
                 if "node_id" not in raw_json: raw_json["node_id"] = req.node_id
                 if "day_index" not in raw_json: raw_json["day_index"] = req.day_index
 
@@ -226,9 +226,17 @@ def generate_story_node(payload_dict: dict) -> dict:
 
 
 # ============================================================
-# 4. 後台工具：結合 Neo4j 開放資料的實境劇本與NPC對話自動生成 (支援日夜與動態動線)
+# 4. 後台工具：結合 Neo4j 開放資料的實境劇本與NPC對話自動生成 (支援多參數與動態動線)
 # ============================================================
-def generate_script_blueprint(theme: str, town_name: str, locations: list, is_night: bool = False) -> dict:
+def generate_script_blueprint(
+    city_name: str,
+    town_name: str,
+    locations: list,
+    traveler_count: int = 1,
+    preferences: list = [],
+    transportation: list = [],
+    is_night: bool = False
+) -> dict:
     llm = _get_llm()
     node_count = len(locations)
 
@@ -245,61 +253,75 @@ def generate_script_blueprint(theme: str, town_name: str, locations: list, is_ni
 
     mode_title = "夜間尋密與過夜線" if is_night else "白天主線探索"
 
+    # 隨機挑選 NPC 避免永遠都是薯光
+    npc_pool = [
+        {"name": "薯光", "role": "充滿朝氣的新生代引導者，善於解開謎題、點燃線索"},
+        {"name": "珍奶奶", "role": "掌管地方數十年的記憶與失落古老配方的守密人"},
+        {"name": "阿達力", "role": "機靈靈通的在地走透透達人，熟悉大街小巷與美食情報"},
+        {"name": "墨先生", "role": "博學嚴謹的文史工作者，擅長解讀古地圖與歷史檔案"},
+        {"name": "霓霓", "role": "對美感與光影極度敏銳的街頭藝術家，專門引導光影觀察與夜遊探索"},
+        {"name": "阿吉伯", "role": "外冷內熱的傳統工藝老師傅，重視手作與傳承"}
+    ]
+    selected_npc = random.choice(npc_pool)
+
+    pref_str = "、".join(preferences) if preferences else "綜合體驗"
+    trans_str = "、".join(transportation) if transportation else "大眾運輸與步行"
+
     system_prompt = f"""你是一位頂尖的中文歷史懸疑小說家與劇作家。
-【絕對指令】：本次生成的所有內容（包含標題、大綱、角色介紹、任務說明、NPC開場白、過關對話等）**必須 100% 使用純正的繁體中文 (zh-TW) 撰寫**，絕對不允許出現任何英文句子或單字。
+【絕對最高指令】：
+1. 本次生成的所有欄位內容（包含標題、前言、大綱、角色介紹、任務說明、NPC開場白、過關對話等）**必須 100% 使用純正的繁體中文 (zh-TW) 撰寫**。
+2. **絕對嚴禁出現任何英文字母、英文單字或英文句子**。如果需要描述外國語彙或裝飾，請全部用中文字表達！
 
-【任務目標】：請根據以下真實地點與主題，為這 **{node_count} 個地點** 創作一篇情節豐富、細節飽滿、具有厚重文學質感的長篇連載解謎劇本（{mode_title}）。
+【任務目標】：請根據以下目標地區與真實地點，自行發揮創意構思一個引人入勝的解謎冒險主題，並為這 **{node_count} 個地點** 創作一篇情節豐富、細節飽滿的長篇解謎劇本（{mode_title}）。
+- 目標地區：{city_name} {town_name}
+- 旅程人數：{traveler_count} 人
+- 旅客偏好：{pref_str}
+- 交通方式：{trans_str}
 
-【固定 NPC 角色池（請從以下 6 位中挑選一位擔任主角）】：
-1. **薯光**：性格充滿朝氣與希望，善於解開謎題、點燃線索，適合扮演充滿活力的新生代引導者。
-2. **珍奶奶**：性格慈祥、見多識廣，掌管地方數十年的記憶與失落古老配方的守密人。
-3. **阿達力**：機靈靈通的在地走透透達人，熟悉大街小巷與美食情報。
-4. **墨先生**：博學嚴謹的文史工作者，擅長解讀古地圖與歷史檔案。
-5. **霓霓**：對美感與光影極度敏銳的街頭藝術家，專門引導光影觀察與夜遊探索。
-6. **阿吉伯**：外冷內熱的傳統工藝老師傅，重視手作與傳承。
+【指定擔任主角的 NPC】：
+- 姓名：{selected_npc['name']}
+- 身分：{selected_npc['role']}
 
-【劇本主題】：{theme} ({town_name})
-【指定站點清單 (共 {node_count} 站，請依序 1 到 {node_count} 串起冒險動線)】：
+【指定站點清單 (共 {node_count} 站)】：
 {locations_text}
 
-【可用任務類型庫（請為每站挑選最適合的一種）】：
-1. 拍照打卡型、2. 短片演繹型、3. 採訪蒐證型、4. 計數推理型、5. 跨關集結型、6. GPS 區域定位型
-7. 圖像地理猜謎型、8. 協作解謎型、9. e人訪談型、10. 文化問答型、11. 創意攝影型、12. 光影觀察型、13. 地方美食型
-
-請嚴格輸出以下 JSON 格式 (純 JSON，不要包含任何 Markdown 標記，且所有欄位內容必須是繁體中文)：
+請嚴格輸出純 JSON 格式 (不要包含任何 Markdown 標記，且所有內容必須是 100% 純繁體中文)：
 {{
-  "title": "富有詩意與懸疑感的長篇劇本標題（繁體中文）",
-  "synopsis": "四到五句、極具史詩感與懸疑氛圍的故事大綱，詳細交代百年前商號的風雨與今日玩家被捲入的命運（繁體中文）...",
+  "title": "富有詩意、懸疑感且精采吸睛的劇本名稱（純繁體中文）",
+  "preface": "大約100字以內的前言，作為整篇故事的前導介紹，懸疑吸引人但不完全劇透（絕對不能有英文）...",
+  "synopsis": "四到五句、極具史詩感與懸疑氛圍的故事大綱（絕對不能有英文）...",
   "is_night_mode": {str(is_night).lower()},
   "npc": {{
-    "name": "填入所選的 NPC 名字（例如：薯光、珍奶奶等）",
-    "role": "該 NPC 的身分設定（繁體中文）",
-    "intro": "詳細的角色小傳，描述他為何在此守候、知道哪些祕密（繁體中文）"
+    "name": "{selected_npc['name']}",
+    "role": "{selected_npc['role']}",
+    "intro": "詳細的角色小傳（絕對不能有英文）"
   }},
   "nodes": [
     {{
       "node_order": 1,
-      "place_name": "對應清單中的站點名稱",
-      "node_title": "充滿意境的關卡標題（繁體中文）",
-      "task_type": "任務類型 (從上方庫中挑選)",
-      "task_description": "篇幅詳盡、融合地點歷史與解謎線索的深度任務說明（至少 80-120 字，繁體中文）",
+      "place_name": "對應清單中的站點真實名稱",
+      "location_codename": "一個非地點名稱卻能詩意描述該地點的代名稱（例如：紅瓦書院）",
+      "node_title": "充滿意境的關卡標題（純繁體中文）",
+      "task_type": "3. 採訪蒐證型",
+      "task_description": "融合地點歷史與解謎線索的深度任務說明（至少 80-120 字，絕對不能有英文）...",
       "dialogues": {{
-        "opening": "（詳細動作與神情描寫）長篇且充滿懸疑感的開場對白，交代當前關卡的危機與線索背景（至少 4-5 句，繁體中文）...",
-        "success": "（反應動作）過關時的讚許、對玩家智慧的驚嘆，以及預告下一站危機的長篇對白（至少 3-4 句，繁體中文）..."
+        "opening": "長篇且充滿懸疑感的開場對白（至少 4-5 句，絕對不能有英文）...",
+        "success": "過關時的讚許以及預告下一站危機的對白（絕對不能有英文）..."
       }}
     }}
   ]
 }}"""
 
     messages = [
-        {"role": "system", "content": system_prompt}, 
-        {"role": "user", "content": "請嚴格遵守繁體中文指令，並挑選一位合適的 NPC，產出一篇內容豐富、百分之百純繁體中文的長篇解謎劇本 JSON："}
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": "請嚴格遵守繁體中文指令，並自主發想精彩主題，產出一篇內容豐富、百分之百純繁體中文的長篇解謎劇本 JSON："}
     ]
 
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            outputs = llm(messages, max_new_tokens=3500, temperature=0.7, do_sample=True)
+            # 將 max_new_tokens 稍微調降至 2500，加快生成速度並避免 Cloudflare 逾時
+            outputs = llm(messages, max_new_tokens=2500, temperature=0.7, do_sample=True)
             response = outputs[0]["generated_text"][-1]["content"]
             start, end = response.find("{"), response.rfind("}") + 1
             if start != -1 and end != 0:
@@ -309,7 +331,8 @@ def generate_script_blueprint(theme: str, town_name: str, locations: list, is_ni
 
     return {
         "story_id": "fallback_01",
-        "title": theme,
+        "title": f"{town_name}時光迷局",
+        "preface": "一段未知的歷史迷局，正等待著你的雙腳去解開...",
         "synopsis": "探索在地文化的精采旅程。",
         "is_night_mode": is_night,
         "nodes": []

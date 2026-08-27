@@ -57,6 +57,42 @@ def search_neo4j_rag(keyword: str, **kwargs) -> str:
     except Exception as e:
         return f"RAG 檢索發生錯誤: {e}"
 
+def fetch_spot_complete_info(spot_name: str) -> dict:
+    """
+    【嚴格防幻覺查詢】
+    精準從 Neo4j 提取指定地點的真實資料（包含描述、地址與透過 HAS_IMAGE 關聯的圖片節點）。
+    若資料庫沒有，則如實回傳空值，絕對不捏造（符合不亂補原則）。
+    """
+    driver = _get_driver()
+    if not driver:
+        return {"name": spot_name, "description": "", "address": "", "images": []}
+
+    query = """
+    MATCH (n)
+    WHERE n.name = $spot_name OR n.EventName = $spot_name
+    OPTIONAL MATCH (n)-[:HAS_IMAGE]->(img:Image)
+    RETURN COALESCE(n.name, n.EventName) AS name,
+           COALESCE(n.description, n.Description, "") AS description,
+           COALESCE(n.address, n.TrafficInfo, "") AS address,
+           collect(COALESCE(img.url, img.ImageURL, img.ImageDescription, "")) AS images
+    LIMIT 1
+    """
+    try:
+        with driver.session() as session:
+            result = session.run(query, spot_name=spot_name)
+            record = result.single()
+            if record and record["description"]:
+                return {
+                    "name": record["name"],
+                    "description": record["description"],
+                    "address": record["address"],
+                    "images": [img for img in record["images"] if img]
+                }
+    except Exception as e:
+        print(f"⚠️ Neo4j 完整資訊檢索錯誤: {e}")
+
+    return {"name": spot_name, "description": "", "address": "", "images": []}
+
 def fetch_locations_for_script(town_name: str, limit: int = 4, is_night: bool = False) -> list:
     """
     動態旅遊動線規劃：
@@ -132,3 +168,4 @@ def fetch_locations_for_script(town_name: str, limit: int = 4, is_night: bool = 
     except Exception as e:
         print(f"⚠️ 動態獲取劇本地點失敗: {e}")
         return []
+
